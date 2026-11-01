@@ -1,1 +1,553 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高校数学Ⅲ：積分法 - 回転体の体積</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- KaTeX for math rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+    
+    <!-- Three.js Import Map -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; overflow: hidden; }
+        #canvas-container { width: 100%; height: 100%; position: relative; }
+        .math-text { font-size: 1.125rem; line-height: 1.75; }
+        #label-r {
+            position: absolute;
+            top: 0; left: 0;
+            pointer-events: none;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 2px solid #ef4444;
+            font-weight: bold;
+            color: #ef4444;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transform: translate(-50%, -50%);
+            display: none;
+            z-index: 10;
+        }
+        #label-func {
+            position: absolute;
+            top: 20px; right: 20px;
+            pointer-events: none;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #1e40af;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 flex flex-col h-screen">
 
+    <!-- Header -->
+    <header class="bg-blue-600 text-white p-4 shadow-md flex-shrink-0 z-10">
+        <h1 class="text-2xl font-bold text-center">高校数学Ⅲ：積分法 - 回転体の体積</h1>
+    </header>
+
+    <!-- Main Content -->
+    <div class="flex flex-1 overflow-hidden flex-col md:flex-row">
+        
+        <!-- Left Panel: Controls -->
+        <aside class="w-full md:w-64 bg-white border-r border-gray-200 p-4 flex flex-col shadow-sm z-10 flex-shrink-0">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">設定と操作</h2>
+            
+            <div class="mb-6">
+                <label for="func-select" class="block text-sm font-medium text-gray-700 mb-2">関数 \( y = f(x) \) を選択:</label>
+                <select id="func-select" class="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500 text-lg">
+                    <option value="one">f(x) = 1</option>
+                    <option value="x">f(x) = x</option>
+                    <option value="x2">f(x) = x²</option>
+                </select>
+                <p class="text-sm text-gray-500 mt-1">※定義域は \( 0 \le x \le 1 \)</p>
+            </div>
+
+            <div class="flex flex-col gap-3 mt-auto">
+                <div class="flex justify-between items-center text-sm text-gray-600 mb-2">
+                    <span>ステップ: <span id="step-indicator" class="font-bold text-blue-600 text-lg">1</span> / 5</span>
+                </div>
+                <button id="btn-prev" class="w-full py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded font-medium transition disabled:opacity-50 disabled:cursor-not-allowed">
+                    前のステップ
+                </button>
+                <button id="btn-next" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium transition disabled:opacity-50 disabled:cursor-not-allowed">
+                    次のステップ
+                </button>
+                <button id="btn-reset" class="w-full py-2 mt-4 bg-red-100 hover:bg-red-200 text-red-700 border border-red-300 rounded font-medium transition">
+                    リセット
+                </button>
+            </div>
+        </aside>
+
+        <!-- Center Panel: 3D Visualization -->
+        <main class="flex-1 relative bg-gray-100 min-h-[300px]">
+            <div id="canvas-container">
+                <!-- 3D Canvas will be injected here -->
+                <div id="label-func">y = 1</div>
+                <div id="label-r">r = 1</div>
+            </div>
+            
+            <!-- Axis Legend Overlay -->
+            <div class="absolute bottom-4 left-4 bg-white/80 p-2 rounded shadow text-sm pointer-events-none">
+                <div class="flex items-center gap-2"><span class="w-4 h-1 bg-red-500 inline-block"></span> x軸 (積分区間: 0〜1)</div>
+                <div class="flex items-center gap-2"><span class="w-4 h-1 bg-green-500 inline-block"></span> y軸 (高さ/半径)</div>
+                <div class="flex items-center gap-2"><span class="w-4 h-1 bg-blue-500 inline-block"></span> z軸</div>
+            </div>
+        </main>
+
+        <!-- Right Panel: Explanations & Math -->
+        <aside class="w-full md:w-80 bg-white border-l border-gray-200 p-6 flex flex-col shadow-sm overflow-y-auto z-10 flex-shrink-0">
+            <h2 id="step-title" class="text-xl font-bold text-blue-800 mb-4 border-b pb-2">1. 関数グラフ</h2>
+            <div id="step-explanation" class="text-gray-700 space-y-4 math-text flex-1">
+                <!-- Content will be injected dynamically -->
+            </div>
+        </aside>
+    </div>
+
+    <!-- Application Logic -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- Application State ---
+        let currentStep = 1;
+        let selectedFunc = 'one';
+        let rotationAngle = 0; // For step 2 animation
+        const TOTAL_STEPS = 5;
+
+        // Functions Definition
+        const functions = {
+            'one': {
+                calc: (x) => 1.0,
+                latex: "1",
+                latexFunc: "y = 1",
+                latexSquared: "1",
+                integralResult: "\\pi",
+                rLabel: "r = 1"
+            },
+            'x': {
+                calc: (x) => x,
+                latex: "x",
+                latexFunc: "y = x",
+                latexSquared: "x^2",
+                integralResult: "\\frac{1}{3}\\pi",
+                rLabel: "r = x"
+            },
+            'x2': {
+                calc: (x) => x * x,
+                latex: "x^2",
+                latexFunc: "y = x^2",
+                latexSquared: "x^4",
+                integralResult: "\\frac{1}{5}\\pi",
+                rLabel: "r = x^2"
+            }
+        };
+
+        // DOM Elements
+        const container = document.getElementById('canvas-container');
+        const funcSelect = document.getElementById('func-select');
+        const btnNext = document.getElementById('btn-next');
+        const btnPrev = document.getElementById('btn-prev');
+        const btnReset = document.getElementById('btn-reset');
+        const stepIndicator = document.getElementById('step-indicator');
+        const stepTitle = document.getElementById('step-title');
+        const stepExplanation = document.getElementById('step-explanation');
+        const labelR = document.getElementById('label-r');
+        const labelFunc = document.getElementById('label-func');
+
+        // --- Three.js Setup ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf3f4f6); // Tailwind gray-50
+
+        const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+        // Position camera to look at the interval [0,1] on X axis
+        camera.position.set(2.5, 2, 3);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(0.5, 0, 0); // Focus on the middle of the interval
+        controls.enableDamping = true;
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(5, 10, 5);
+        scene.add(dirLight);
+
+        // Axes and Grid
+        const axesHelper = new THREE.AxesHelper(1.5);
+        scene.add(axesHelper);
+        
+        // Custom Grid on XY plane
+        const gridHelper = new THREE.GridHelper(3, 30, 0xcccccc, 0xe5e7eb);
+        gridHelper.rotation.x = Math.PI / 2;
+        gridHelper.position.set(0, 0, 0);
+        scene.add(gridHelper);
+
+        // --- 3D Objects ---
+        
+        // 1. The 2D Curve
+        let curveLine;
+        const curveMaterial = new THREE.LineBasicMaterial({ color: 0xef4444, linewidth: 3 }); // Tailwind red-500
+        
+        // 2. The Solid of Revolution (Custom BufferGeometry)
+        let solidMesh;
+        const solidMaterial = new THREE.MeshPhysicalMaterial({ 
+            color: 0x3b82f6, // Tailwind blue-500
+            transparent: true, 
+            opacity: 0.5, 
+            side: THREE.DoubleSide,
+            roughness: 0.2,
+            metalness: 0.1
+        });
+
+        // 3. Disks Group
+        const disksGroup = new THREE.Group();
+        scene.add(disksGroup);
+
+        // 4. Radius Line for Step 4
+        let radiusLine;
+        const radiusGeom = new THREE.CylinderGeometry(0.015, 0.015, 1, 16);
+        radiusGeom.translate(0, 0.5, 0); // Origin at bottom
+        radiusLine = new THREE.Mesh(radiusGeom, new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+        scene.add(radiusLine);
+
+        // --- Geometry Generation Functions ---
+
+        function updateCurve() {
+            if(curveLine) scene.remove(curveLine);
+            const f = functions[selectedFunc].calc;
+            const points = [];
+            for(let i=0; i<=50; i++) {
+                const x = i / 50;
+                points.push(new THREE.Vector3(x, f(x), 0));
+            }
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            curveLine = new THREE.Line(geometry, curveMaterial);
+            scene.add(curveLine);
+        }
+
+        function generateSolidGeometry(angle) {
+            const f = functions[selectedFunc].calc;
+            const segmentsX = 50;
+            const segmentsRot = 40;
+            const positions = [];
+            const indices = [];
+
+            // Generate vertices
+            for (let i = 0; i <= segmentsX; i++) {
+                const x = i / segmentsX;
+                const r = f(x);
+                for (let j = 0; j <= segmentsRot; j++) {
+                    const theta = (j / segmentsRot) * angle;
+                    // Rotation around X axis
+                    const y = r * Math.cos(theta);
+                    const z = r * Math.sin(theta);
+                    positions.push(x, y, z);
+                }
+            }
+
+            // Generate indices for faces
+            for (let i = 0; i < segmentsX; i++) {
+                for (let j = 0; j < segmentsRot; j++) {
+                    const a = i * (segmentsRot + 1) + j;
+                    const b = a + 1;
+                    const c = (i + 1) * (segmentsRot + 1) + j;
+                    const d = c + 1;
+
+                    indices.push(a, b, c);
+                    indices.push(b, d, c);
+                }
+            }
+
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setIndex(indices);
+            geometry.computeVertexNormals();
+            return geometry;
+        }
+
+        function updateSolid(angle) {
+            if(solidMesh) scene.remove(solidMesh);
+            const geom = generateSolidGeometry(angle);
+            solidMesh = new THREE.Mesh(geom, solidMaterial);
+            scene.add(solidMesh);
+        }
+
+        function createDisks() {
+            disksGroup.clear();
+            const f = functions[selectedFunc].calc;
+            const N = 20; // Number of disks
+            const dx = 1 / N;
+            const gapRatio = 0.75; // 隙間を開けるための比率（厚さを75%に）
+
+            for(let i=0; i<N; i++) {
+                const x = i * dx;
+                const r = f(x);
+                // Cylinder is aligned along Y by default, rotate to X
+                const geom = new THREE.CylinderGeometry(r, r, dx * gapRatio, 32);
+                geom.rotateZ(Math.PI / 2);
+                
+                const mat = new THREE.MeshPhysicalMaterial({
+                    color: 0xf59e0b, // Tailwind amber-500
+                    transparent: true,
+                    opacity: 0.8,
+                    side: THREE.DoubleSide
+                });
+                const mesh = new THREE.Mesh(geom, mat);
+                
+                // Add edges for visibility
+                const edges = new THREE.EdgesGeometry(geom);
+                const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xb45309 }));
+                mesh.add(line);
+
+                mesh.position.set(x + dx/2, 0, 0); // Position at center of interval
+                mesh.userData = { index: i, x: x };
+                disksGroup.add(mesh);
+            }
+        }
+
+        // --- State Management and UI Updates ---
+
+        function updateMathRendering() {
+            renderMathInElement(stepExplanation, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '\\(', right: '\\)', display: false}
+                ],
+                throwOnError: false
+            });
+        }
+
+        function renderExplanation() {
+            const funcData = functions[selectedFunc];
+            let html = '';
+            
+            switch(currentStep) {
+                case 1:
+                    stepTitle.innerText = "1. 関数グラフ";
+                    html = `
+                        <p>選択された関数は以下の通りです。</p>
+                        <p class="text-center bg-gray-100 p-2 rounded">\\( y = ${funcData.latex} \\quad (0 \\le x \\le 1) \\)</p>
+                        <p>座標空間の \(xy\) 平面に描かれた赤い線が、この関数のグラフです。</p>
+                        <p>この曲線を元にして、回転体を作っていきます。</p>
+                    `;
+                    break;
+                case 2:
+                    stepTitle.innerText = "2. x軸まわりの回転";
+                    html = `
+                        <p>曲線を <strong>\(x\) 軸を中心にして1回転</strong> させます。</p>
+                        <p>すると、空間内に立体（回転体）が形成されます。これが「回転体の体積」を求める対象です。</p>
+                        <p>マウス（またはタッチ）で画面をドラッグし、様々な角度から立体を観察してみてください。</p>
+                    `;
+                    break;
+                case 3:
+                    stepTitle.innerText = "3. 円盤への分割";
+                    html = `
+                        <p>立体の体積を計算するために、立体を \(x\) 軸に垂直な方向に細かくスライスします。</p>
+                        <p>スライスされた1つ1つの断片は、厚さが非常に薄い（\\(dx\\)）<strong>円盤</strong>とみなすことができます。</p>
+                        <p>これらすべての円盤の体積を足し合わせることで、全体の体積を近似できます。</p>
+                    `;
+                    break;
+                case 4:
+                    stepTitle.innerText = "4. 1枚の円盤にフォーカス";
+                    html = `
+                        <p>位置 \\(x\\) にある1枚の円盤を取り出してみましょう。</p>
+                        <p>この円盤の断面は円であり、その<strong>半径は関数の値 \\(f(x)\\)</strong> に等しくなります。</p>
+                        <p>したがって、断面積 \\(S(x)\\) は円の面積の公式より：</p>
+                        <p class="text-center bg-gray-100 p-2 rounded">\\( S(x) = \\pi \\{f(x)\\}^2 = \\pi (${funcData.latex})^2 \\)</p>
+                        <p>微小な厚さ \\(dx\\) を掛けた \\( \\pi \\{f(x)\\}^2 dx \\) が、この円盤1枚の体積となります。</p>
+                    `;
+                    break;
+                case 5:
+                    stepTitle.innerText = "5. 積分による体積の計算";
+                    html = `
+                        <p>円盤の厚さを限りなく 0 に近づけ（\\(dx \\to 0\\)）、\\(x=0\\) から \\(x=1\\) まで無数に足し合わせる操作は、<strong>定積分</strong>で表されます。</p>
+                        <p class="mt-4 mb-2 text-center text-red-600 font-bold">微小円盤の集積 ＝ 定積分</p>
+                        <div class="text-center bg-gray-100 p-4 rounded-lg shadow-inner border border-gray-300 overflow-x-auto">
+                            $$ V = \\lim_{n \\to \\infty} \\sum_{i=1}^{n} \\pi \\{f(x_i)\\}^2 \\Delta x = \\int_{0}^{1} \\pi \\{f(x)\\}^2 dx $$
+                        </div>
+                        <p class="mt-4">今回選択した関数 \\( ${funcData.latexFunc} \\) の場合、体積は次のように計算されます：</p>
+                        <div class="text-center text-blue-800 font-bold bg-blue-50 p-4 rounded-lg border border-blue-200 shadow-sm mt-2 overflow-x-auto">
+                            $$ V = \\pi \\int_{0}^{1} ${funcData.latexSquared} dx = ${funcData.integralResult} $$
+                        </div>
+                    `;
+                    break;
+            }
+
+            stepExplanation.innerHTML = html;
+            updateMathRendering();
+
+            // Update Labels
+            labelFunc.innerHTML = `\\( ${funcData.latexFunc} \\)`;
+            labelR.innerText = funcData.rLabel;
+            renderMathInElement(labelFunc, { delimiters: [{left: '\\(', right: '\\)', display: false}] });
+        }
+
+        function applyStepState() {
+            // Reset visibilities
+            curveLine.visible = true;
+            if(solidMesh) solidMesh.visible = false;
+            disksGroup.visible = false;
+            labelR.style.display = 'none';
+            radiusLine.visible = false;
+
+            // Reset disk opacities
+            disksGroup.children.forEach(disk => {
+                disk.material.opacity = 0.8;
+                disk.material.color.setHex(0xf59e0b); // original amber
+                if(disk.children[0]) disk.children[0].material.opacity = 1.0;
+            });
+
+            switch(currentStep) {
+                case 1:
+                    rotationAngle = 0;
+                    updateSolid(rotationAngle);
+                    break;
+                case 2:
+                    solidMesh.visible = true;
+                    // Animation handled in render loop
+                    break;
+                case 3:
+                    disksGroup.visible = true;
+                    break;
+                case 4:
+                    disksGroup.visible = true;
+                    // Fade all except the middle one (index 10)
+                    disksGroup.children.forEach((disk, idx) => {
+                        if(idx !== 10) {
+                            disk.material.opacity = 0.1;
+                            if(disk.children[0]) disk.children[0].material.opacity = 0.1;
+                        } else {
+                            disk.material.color.setHex(0xef4444); // highlight red
+                        }
+                    });
+                    labelR.style.display = 'block';
+                    radiusLine.visible = true;
+                    break;
+                case 5:
+                    rotationAngle = Math.PI * 2;
+                    updateSolid(rotationAngle);
+                    solidMesh.visible = true;
+                    curveLine.visible = false; // Hide line for cleaner solid view
+                    break;
+            }
+
+            // Update UI buttons
+            stepIndicator.innerText = currentStep;
+            btnPrev.disabled = currentStep === 1;
+            btnNext.disabled = currentStep === TOTAL_STEPS;
+            
+            renderExplanation();
+        }
+
+        // --- Event Listeners ---
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep < TOTAL_STEPS) {
+                currentStep++;
+                if(currentStep === 2) rotationAngle = 0; // reset for animation
+                applyStepState();
+            }
+        });
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 1) {
+                currentStep--;
+                applyStepState();
+            }
+        });
+
+        btnReset.addEventListener('click', () => {
+            currentStep = 1;
+            applyStepState();
+            controls.target.set(0.5, 0, 0);
+            camera.position.set(2.5, 2, 3);
+        });
+
+        funcSelect.addEventListener('change', (e) => {
+            selectedFunc = e.target.value;
+            updateCurve();
+            createDisks();
+            rotationAngle = (currentStep >= 2 && currentStep !== 3 && currentStep !== 4) ? Math.PI * 2 : 0;
+            if (currentStep === 2) rotationAngle = 0; // restart animation if in step 2
+            updateSolid(rotationAngle);
+            applyStepState();
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        });
+
+        // --- Initialization ---
+        updateCurve();
+        updateSolid(0);
+        createDisks();
+        applyStepState();
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            // Step 2 Animation logic (rotating the curve)
+            if (currentStep === 2 && rotationAngle < Math.PI * 2) {
+                rotationAngle += 0.05;
+                if (rotationAngle >= Math.PI * 2) rotationAngle = Math.PI * 2;
+                updateSolid(rotationAngle);
+            }
+
+            // Update Label Position in Step 4
+            if (currentStep === 4) {
+                const targetDiskIndex = 10;
+                const f = functions[selectedFunc].calc;
+                const xPos = targetDiskIndex * (1/20) + (1/40); // Center of the disk
+                const r = f(xPos);
+                
+                // Update radius line
+                radiusLine.position.set(xPos, 0, 0);
+                radiusLine.scale.set(1, r, 1);
+
+                // Position label slightly to the side of the center of radius
+                const pos = new THREE.Vector3(xPos, r / 2, 0);
+                pos.project(camera);
+                
+                // Convert to CSS coordinates
+                const x = (pos.x *  .5 + .5) * container.clientWidth;
+                const y = (pos.y * -.5 + .5) * container.clientHeight;
+                
+                labelR.style.transform = `translate(-50%, -100%) translate(${x}px,${y}px)`;
+            }
+
+            renderer.render(scene, camera);
+        }
+        
+        animate();
+
+    </script>
+</body>
+</html>
